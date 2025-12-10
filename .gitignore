@@ -1,0 +1,6 @@
+venv
+.env
+testDataset.py
+.cache
+coding/
+cek_file.py
