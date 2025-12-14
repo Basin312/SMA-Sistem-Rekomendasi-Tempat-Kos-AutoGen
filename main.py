@@ -35,36 +35,30 @@ data_assistant = AssistantAgent(
     name="Python_Coder",
     llm_config=llm_config,
     system_message=f"""
-    Kamu adalah robot pengolah data. DILARANG BERPIKIR. 
-    HANYA gunakan kode di bawah ini tanpa modifikasi pada bagian cleaning.
+    Kamu adalah robot pembuat kode Python. DILARANG KERAS menulis fungsi `input()`.
+    Tugasmu adalah menulis kode fungsional untuk mengolah '{nama_file}'.
 
-    KODE TEMPLATE:
-    ```python
-    import pandas as pd
+    INSTRUKSI KODE:
+    1. Selalu mulai dengan:
+       ```python
+       import pandas as pd
+       df = pd.read_csv('{nama_file}', sep=';')
+       df['p_num'] = pd.to_numeric(df['price'].astype(str).str.replace(r'\\D', '', regex=True), errors='coerce').fillna(0)
+       ```
 
-    # 1. Load
-    df = pd.read_csv('data_kos.csv', sep=';')
+    2. LOGIKA SEARCH (Tulis baris ini HANYA jika ada di permintaan user):
+       - Jika ada nama kota (Depok/Bogor/Jakarta/Bekasi), tulis: 
+         `df = df[df['region'].str.contains('NAMA_KOTA_DI_SINI', case=False)]`
+       - Jika ada kata 'murah', tulis: 
+         `df = df.sort_values(by='p_num', ascending=True)`
+       - Jika ada kata 'eksklusif', tulis: 
+         `df = df.sort_values(by='p_num', ascending=False)`
 
-    # 2. Cleaning (PASTI BERHASIL)
-    # Menghapus semua karakter kecuali angka
-    df['price_num'] = df['price'].astype(str).str.replace(r'\\D', '', regex=True)
-    df['price_num'] = pd.to_numeric(df['price_num'], errors='coerce').fillna(0)
+    3. OUTPUT:
+       Selalu akhiri dengan:
+       `print(df[['room_name', 'region', 'price', 'all_facilities_bs']].head(3).to_string(index=False))`
 
-    # 3. Logika (Sesuaikan permintaan)
-    # Jika user minta murah:
-    df = df.sort_values(by='price_num', ascending=True)
-    
-    # Jika user minta daerah (misal Depok):
-    # df = df[df['region'].str.contains('Depok', case=False)]
-
-    # 4. Output
-    print(df[['room_name', 'region', 'price', 'all_facilities_bs']].head(3).to_string(index=False))
-    ```
-    
-    PANTANGAN:
-    - JANGAN gunakan .replace('$','') atau .replace(',','').
-    - JANGAN gunakan lambda x: float(x).
-    - JANGAN mencari kata 'murah' di dalam teks.
+    DILARANG memberikan penjelasan teks. HANYA blok kode ```python.
     """
 )
 
@@ -108,20 +102,22 @@ else:
 
 # LANGKAH 2: Analisis Subjektif (Soft Constraint)
 if "Empty DataFrame" in hard_data or not hard_data:
-    print("\n[HASIL] Tidak ditemukan kos yang cocok dengan kriteria fasilitas/harga tersebut.")
+    print("\n[HASIL] Tidak ditemukan kos yang cocok. Coba kurangi kriteria Anda.")
 else:
     print("\n" + "-"*60)
-    print("[LOG] Langkah 2: Menganalisis Suasana & Kenyamanan...")
+    print("[LOG] Langkah 2: Consultant sedang merangkum hasil...")
     print("-"*60)
     
-    kost_consultant.initiate_chat(
-        user_executor,
+    # Biarkan Consultant membaca tabel hasil dari Coder
+    user_executor.initiate_chat(
+        kost_consultant,
         message=f"""
-        Permintaan User: {request}
+        User mencari: {request}
         
-        Berikut adalah daftar kos yang cocok secara fasilitas:
+        Hasil pencarian tabel:
         {hard_data}
         
-        Berdasarkan data tersebut, tolong rekomendasikan mana yang paling cocok dengan kriteria subjektif user (misal: ketenangan/kenyamanan).
+        Tolong berikan rekomendasi singkat dan ramah dari 3 data di atas. 
+        Sebutkan kelebihan fasilitasnya.
         """
     )
