@@ -35,21 +35,28 @@ data_assistant = AssistantAgent(
     name="Python_Coder",
     llm_config=llm_config,
     system_message=f"""
-    Kamu adalah Python Data Scientist. Tugasmu HANYA menulis kode Python untuk memfilter data KERAS.
+    Kamu adalah robot pembuat kode Python. HANYA tulis kode dalam blok ```python.
+
+    # --- BAGIAN 1: DATA REFERENCE (Hard Constraint) ---
+    Kolom yang tersedia: 'room_name', 'region', 'price', 'all_facilities_bs'.
+    - Lokasi: kolom 'region'
+    - Fasilitas: kolom 'all_facilities_bs'
+    - Harga: kolom 'price' (harus dibersihkan dulu)
+
+    # --- BAGIAN 2: INSTRUKSI KODE WAJIB ---
+    1. Load: `df = pd.read_csv('{nama_file}', sep=';')`
+    2. Clean Harga: `df['p_num'] = pd.to_numeric(df['price'].astype(str).str.replace(r'\\D', '', regex=True), errors='coerce').fillna(0)`
     
-    ATURAN MUTLAK KODE:
-    1. **Filter Keras:** Hanya filter kriteria 'ac', 'wifi', 'parkir', 'kamar mandi dalam', atau Nama Kota.
-    2. **ABAIKAN Soft Constraint:** JANGAN memfilter kata 'tenang', 'nyaman', 'aman', atau 'bersih' di dalam kode.
-    3. **Syntax Wajib:**
-       - df = pd.read_csv('{nama_file}', sep=';')
-       - Cleaning Harga: 
-         df['p_c'] = df['price'].astype(str).str.replace('Rp','').str.replace('.','', regex=False).str.split('/').str[0].str.split(' ').str[0]
-         df['price_final'] = pd.to_numeric(df['p_c'], errors='coerce')
-         df = df.dropna(subset=['price_final'])
-       - Filter Fasilitas: Gunakan `df['all_facilities_bs'].str.contains('keyword', case=False, na=False)`
-       - Output: Tampilkan kolom [room_name, region, price, all_facilities_bs] dengan `.to_string(index=False)`.
-    
-    Hanya berikan kode dalam blok ```python. JANGAN berikan narasi penjelasan.
+    # --- BAGIAN 3: LOGIKA PEMROSESAN (Hard & Soft) ---
+    - HARD (Lakukan ini): 
+        * Jika ada nama kota (Depok/Bogor/dll), gunakan `.str.contains` pada kolom 'region'.
+        * Jika ada kata 'murah', gunakan `.sort_values(by='p_num', ascending=True)`.
+        * Jika ada kata 'eksklusif', gunakan `.sort_values(by='p_num', ascending=False)`.
+    - SOFT (Abaikan ini dalam kode):
+        * Jika ada kata 'nyaman', 'tenang', 'strategis', JANGAN buat filter kode apapun. Abaikan saja.
+
+    # --- BAGIAN 4: OUTPUT ---
+    `print(df[['room_name', 'region', 'price', 'all_facilities_bs']].head(3).to_string(index=False))`
     """
 )
 
@@ -93,20 +100,22 @@ else:
 
 # LANGKAH 2: Analisis Subjektif (Soft Constraint)
 if "Empty DataFrame" in hard_data or not hard_data:
-    print("\n[HASIL] Tidak ditemukan kos yang cocok dengan kriteria fasilitas/harga tersebut.")
+    print("\n[HASIL] Tidak ditemukan kos yang cocok. Coba kurangi kriteria Anda.")
 else:
     print("\n" + "-"*60)
-    print("[LOG] Langkah 2: Menganalisis Suasana & Kenyamanan...")
+    print("[LOG] Langkah 2: Consultant sedang merangkum hasil...")
     print("-"*60)
     
-    kost_consultant.initiate_chat(
-        user_executor,
+    # Biarkan Consultant membaca tabel hasil dari Coder
+    user_executor.initiate_chat(
+        kost_consultant,
         message=f"""
-        Permintaan User: {request}
+        User mencari: {request}
         
-        Berikut adalah daftar kos yang cocok secara fasilitas:
+        Hasil pencarian tabel:
         {hard_data}
         
-        Berdasarkan data tersebut, tolong rekomendasikan mana yang paling cocok dengan kriteria subjektif user (misal: ketenangan/kenyamanan).
+        Tolong berikan rekomendasi singkat dan ramah dari 3 data di atas. 
+        Sebutkan kelebihan fasilitasnya.
         """
     )
