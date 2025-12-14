@@ -1,98 +1,112 @@
 import os
 import shutil
 import pandas as pd
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+from autogen import AssistantAgent, UserProxyAgent
 
-# --- CONFIG ---
+# --- 1. KONFIGURASI ---
 config_list = [{"model": "kost_coder", "base_url": "http://localhost:11434/v1", "api_key": "ollama"}]
 llm_config = {"config_list": config_list, "cache_seed": None, "temperature": 0}
 
-# --- SETUP FILE ---
 work_dir = "coding"
 if not os.path.exists(work_dir): os.makedirs(work_dir)
 
-# NAMA FILE BARU 
 nama_file = "data_kos.csv" 
 
-# Cek & Copy Otomatis path data
+# Setup File: Copy data ke folder eksekusi
 if os.path.exists(nama_file):
     shutil.copy(nama_file, os.path.join(work_dir, nama_file))
-    print(f"[SUCCESS] File '{nama_file}' ditemukan dan disalin ke folder coding.")
-elif os.path.exists(os.path.join(work_dir, nama_file)):
-    print(f"[INFO] File '{nama_file}' sudah ada di folder coding.")
-else:
-    print(f"\n[ERROR] File '{nama_file}' TIDAK DITEMUKAN di folder proyek!")
-    print("Silakan Rename file asli menjadi 'data_kos.csv' dan taruh di sebelah main.py")
+    print(f"[SUCCESS] File '{nama_file}' siap di folder coding.")
+elif not os.path.exists(os.path.join(work_dir, nama_file)):
+    print(f"\n[ERROR] File '{nama_file}' tidak ditemukan!")
     exit()
 
-# --- AGENTS ---
-# 1. USER EXECUTOR 
-user_proxy = UserProxyAgent(
-    name="user_executor",
+# --- 2. DEFINISI AGEN ---
+
+# Agen Eksekutor (Menjalankan Kode)
+user_executor = UserProxyAgent(
+    name="Executor",
     human_input_mode="NEVER",
-    max_consecutive_auto_reply=8, # Tambah reply limit karena obrolan lebih panjang
+    max_consecutive_auto_reply=5,
     code_execution_config={"work_dir": work_dir, "use_docker": False},
-    system_message="""
-    Executor. Anda menjalankan kode Python yang disediakan oleh kost_coder. 
-    Jika kode berhasil, output akan ditampilkan. Jika gagal, berikan error traceback secara lengkap.
-    """
 )
 
-# 2. KOST ANALYST (Perencana Logika)
-# Agen ini adalah yang menerima request pengguna pertama kali
-kost_analyst = AssistantAgent(
-    name="kost_analyst",
+# Agen Coder (Khusus Hard Constraint & Data)
+data_assistant = AssistantAgent(
+    name="Python_Coder",
     llm_config=llm_config,
     system_message=f"""
-    Kamu adalah Ahli Analisis Data. File yang digunakan: '{nama_file}'.
-    Tugasmu adalah menganalisis request pengguna dan merencanakan langkah-langkah data Pandas yang diperlukan.
-    Berikan instruksi KEPADA KOST_CODER untuk menulis kode.
-    WAJIB sertakan langkah-langkah spesifik ini dalam instruksimu:
-
-    1. READ FILE: Gunakan `df = pd.read_csv('{nama_file}', sep=';')`.
-    2. CLEANING HARGA: WAJIB gunakan kode yang mengubah kolom 'price' menjadi numerik 'price_final'.
-    3. LOGIC FILTERING: WAJIB menggunakan `df['all_facilities_bs'].str.contains` untuk fasilitas dan `.sort_values('price_final').head(N)` untuk top N termurah.
-    4. OUTPUT: WAJIB menampilkan kolom room_name, region, price, all_facilities_bs menggunakan `.to_string(index=False)`.
-    5. JANGAN PERNAH MENULIS KODE PYTHON, HANYA INSTRUKSI TEKS.
+    Kamu adalah Python Data Scientist. Tugasmu HANYA menulis kode Python untuk memfilter data KERAS.
+    
+    ATURAN MUTLAK KODE:
+    1. **Filter Keras:** Hanya filter kriteria 'ac', 'wifi', 'parkir', 'kamar mandi dalam', atau Nama Kota.
+    2. **ABAIKAN Soft Constraint:** JANGAN memfilter kata 'tenang', 'nyaman', 'aman', atau 'bersih' di dalam kode.
+    3. **Syntax Wajib:**
+       - df = pd.read_csv('{nama_file}', sep=';')
+       - Cleaning Harga: 
+         df['p_c'] = df['price'].astype(str).str.replace('Rp','').str.replace('.','', regex=False).str.split('/').str[0].str.split(' ').str[0]
+         df['price_final'] = pd.to_numeric(df['p_c'], errors='coerce')
+         df = df.dropna(subset=['price_final'])
+       - Filter Fasilitas: Gunakan `df['all_facilities_bs'].str.contains('keyword', case=False, na=False)`
+       - Output: Tampilkan kolom [room_name, region, price, all_facilities_bs] dengan `.to_string(index=False)`.
+    
+    Hanya berikan kode dalam blok ```python. JANGAN berikan narasi penjelasan.
     """
 )
 
-# 3. KOST CODER (Pelaksana Kode)
-# Tugasnya hanya menerima instruksi dari Analyst dan menerjemahkan ke Python
-kost_coder = AssistantAgent(
-    name="kost_coder",
+# Agen Konsultan (Khusus Soft Constraint & Penalaran)
+kost_consultant = AssistantAgent(
+    name="Consultant",
     llm_config=llm_config,
     system_message="""
-    Kamu adalah Pakar Python Coding.
-    Tugasmu adalah MENGAMBIL instruksi dari kost_analyst dan mengubahnya menjadi satu blok kode Python yang dapat dijalankan.
-    Setelah menulis kode, kirimkan KODE PYTHON tersebut kepada user_executor.
-    Jangan pernah berkomentar, hanya tulis kode Python.
+    Kamu adalah Konsultan Properti Kos. Tugasmu memberikan evaluasi subjektif (soft constraint).
+    
+    Tugasmu:
+    1. Baca tabel hasil yang diberikan.
+    2. Analisis mana kos yang paling sesuai dengan permintaan subjektif user (seperti 'tenang', 'strategis', atau 'bersih').
+    3. Gunakan logika heuristik: misalnya, kos di 'perumahan' lebih tenang daripada di 'jalan raya'.
+    
+    Format: Berikan narasi ramah dalam Bahasa Indonesia. Akhiri dengan "TERMINATE".
     """
 )
 
-# ===============================================
-# --- 2. ORKESTRASI (GROUP CHAT) ---
-# ===============================================
+# --- 3. ALUR KERJA (SEQUENTIAL CHAT) ---
 
-# Daftarkan semua agen ke dalam grup
-groupchat = GroupChat(
-    agents=[kost_analyst, kost_coder, user_proxy], 
-    messages=[], 
-    max_round=10
+print("\n" + "="*60)
+print("SISTEM REKOMENDASI KOS: HARD & SOFT CONSTRAINT")
+print("="*60)
+request = input("\nMasukkan kriteria kos Anda: ")
+
+# LANGKAH 1: Filter Data (Hard Constraint)
+print("\n[LOG] Langkah 1: Memproses Kriteria Fasilitas & Harga...")
+coder_chat = user_executor.initiate_chat(
+    data_assistant, 
+    message=f"Tulis kode untuk mencari kriteria keras: {request}",
+    silent=False
 )
 
-# Manager mengatur alur percakapan dalam grup
-manager = GroupChatManager(groupchat=groupchat, llm_config=llm_config)
+# Ambil output tabel murni dari terminal
+last_msg = user_executor.last_message(data_assistant)["content"]
+if "Code output:" in last_msg:
+    hard_data = last_msg.split("Code output:")[1].strip()
+else:
+    hard_data = ""
 
-
-# --- RUNNING SEQUENCE ---
-print("\n=======================================================")
-print("SISTEM PENCARI KOS (TRIPLE-AGENT: Analyst -> Coder -> Executor)")
-print("=======================================================")
-request = input("\nMasukkan pencarian (cth: kos murah ada wifi atau kos di Depok AC max 2 juta): ")
-
-# Obrolan dimulai oleh user_executor dan ditujukan ke manager grup
-user_proxy.initiate_chat(
-    manager,
-    message=f"Tolong analisis dan berikan kode Python untuk request berikut: {request}"
-)
+# LANGKAH 2: Analisis Subjektif (Soft Constraint)
+if "Empty DataFrame" in hard_data or not hard_data:
+    print("\n[HASIL] Tidak ditemukan kos yang cocok dengan kriteria fasilitas/harga tersebut.")
+else:
+    print("\n" + "-"*60)
+    print("[LOG] Langkah 2: Menganalisis Suasana & Kenyamanan...")
+    print("-"*60)
+    
+    kost_consultant.initiate_chat(
+        user_executor,
+        message=f"""
+        Permintaan User: {request}
+        
+        Berikut adalah daftar kos yang cocok secara fasilitas:
+        {hard_data}
+        
+        Berdasarkan data tersebut, tolong rekomendasikan mana yang paling cocok dengan kriteria subjektif user (misal: ketenangan/kenyamanan).
+        """
+    )
