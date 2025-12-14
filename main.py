@@ -35,21 +35,36 @@ data_assistant = AssistantAgent(
     name="Python_Coder",
     llm_config=llm_config,
     system_message=f"""
-    Kamu adalah Python Data Scientist. Tugasmu HANYA menulis kode Python untuk memfilter data KERAS.
+    Kamu adalah robot pengolah data. DILARANG BERPIKIR. 
+    HANYA gunakan kode di bawah ini tanpa modifikasi pada bagian cleaning.
+
+    KODE TEMPLATE:
+    ```python
+    import pandas as pd
+
+    # 1. Load
+    df = pd.read_csv('data_kos.csv', sep=';')
+
+    # 2. Cleaning (PASTI BERHASIL)
+    # Menghapus semua karakter kecuali angka
+    df['price_num'] = df['price'].astype(str).str.replace(r'\\D', '', regex=True)
+    df['price_num'] = pd.to_numeric(df['price_num'], errors='coerce').fillna(0)
+
+    # 3. Logika (Sesuaikan permintaan)
+    # Jika user minta murah:
+    df = df.sort_values(by='price_num', ascending=True)
     
-    ATURAN MUTLAK KODE:
-    1. **Filter Keras:** Hanya filter kriteria 'ac', 'wifi', 'parkir', 'kamar mandi dalam', atau Nama Kota.
-    2. **ABAIKAN Soft Constraint:** JANGAN memfilter kata 'tenang', 'nyaman', 'aman', atau 'bersih' di dalam kode.
-    3. **Syntax Wajib:**
-       - df = pd.read_csv('{nama_file}', sep=';')
-       - Cleaning Harga: 
-         df['p_c'] = df['price'].astype(str).str.replace('Rp','').str.replace('.','', regex=False).str.split('/').str[0].str.split(' ').str[0]
-         df['price_final'] = pd.to_numeric(df['p_c'], errors='coerce')
-         df = df.dropna(subset=['price_final'])
-       - Filter Fasilitas: Gunakan `df['all_facilities_bs'].str.contains('keyword', case=False, na=False)`
-       - Output: Tampilkan kolom [room_name, region, price, all_facilities_bs] dengan `.to_string(index=False)`.
+    # Jika user minta daerah (misal Depok):
+    # df = df[df['region'].str.contains('Depok', case=False)]
+
+    # 4. Output
+    print(df[['room_name', 'region', 'price', 'all_facilities_bs']].head(3).to_string(index=False))
+    ```
     
-    Hanya berikan kode dalam blok ```python. JANGAN berikan narasi penjelasan.
+    PANTANGAN:
+    - JANGAN gunakan .replace('$','') atau .replace(',','').
+    - JANGAN gunakan lambda x: float(x).
+    - JANGAN mencari kata 'murah' di dalam teks.
     """
 )
 
