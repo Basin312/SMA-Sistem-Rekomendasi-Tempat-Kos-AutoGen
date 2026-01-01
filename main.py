@@ -35,28 +35,32 @@ data_assistant = AssistantAgent(
     name="Python_Coder",
     llm_config=llm_config,
     system_message=f"""
-    Kamu adalah robot pembuat kode Python. HANYA tulis kode dalam blok ```python.
+    Role: Python Coder. Task: Write Python code to filter '{nama_file}'.
+    Output: ONLY a Python code block. NO text.
 
-    # --- BAGIAN 1: DATA REFERENCE (Hard Constraint) ---
-    Kolom yang tersedia: 'room_name', 'region', 'price', 'all_facilities_bs'.
-    - Lokasi: kolom 'region'
-    - Fasilitas: kolom 'all_facilities_bs'
-    - Harga: kolom 'price' (harus dibersihkan dulu)
-
-    # --- BAGIAN 2: INSTRUKSI KODE WAJIB ---
-    1. Load: `df = pd.read_csv('{nama_file}', sep=';')`
-    2. Clean Harga: `df['p_num'] = pd.to_numeric(df['price'].astype(str).str.replace(r'\\D', '', regex=True), errors='coerce').fillna(0)`
+    MANDATORY CODE STRUCTURE (FOLLOW STRICTLY):
+    1. Load Data:
+       `df = pd.read_csv('{nama_file}', sep=';')`
     
-    # --- BAGIAN 3: LOGIKA PEMROSESAN (Hard & Soft) ---
-    - HARD (Lakukan ini): 
-        * Jika ada nama kota (Depok/Bogor/dll), gunakan `.str.contains` pada kolom 'region'.
-        * Jika ada kata 'murah', gunakan `.sort_values(by='p_num', ascending=True)`.
-        * Jika ada kata 'eksklusif', gunakan `.sort_values(by='p_num', ascending=False)`.
-    - SOFT (Abaikan ini dalam kode):
-        * Jika ada kata 'nyaman', 'tenang', 'strategis', JANGAN buat filter kode apapun. Abaikan saja.
+    2. Clean Price:
+       `df['p_num'] = pd.to_numeric(df['price'].astype(str).str.replace(r'\\D', '', regex=True), errors='coerce').fillna(0)`
 
-    # --- BAGIAN 4: OUTPUT ---
-    `print(df[['room_name', 'region', 'price', 'all_facilities_bs']].head(3).to_string(index=False))`
+    3. APPLY FILTERS (Chain them sequentially, DO NOT use complex if/else branches):
+       # Filter Location (Hard Constraint)
+       # IF user asks for Depok/Bogor, add: df = df[df['region'].str.contains('Depok|Bogor', case=False, na=False)]
+       
+       # Filter Facilities (Hard Constraint)
+       # IF user asks for AC/WiFi, add: df = df[df['all_facilities_bs'].str.contains('AC|WiFi', case=False, na=False)]
+       
+       # Filter Price (Hard Constraint)
+       # IF user asks for cheap/murah: df = df.sort_values(by='p_num', ascending=True)
+
+    4. IGNORE SOFT CONSTRAINTS:
+       # Words like: 'nyaman', 'tenang', 'strategis', 'bersih', 'aman'.
+       # DO NOT write code for these. DO NOT check if they exist. Just ignore them.
+
+    5. FINAL OUTPUT (Must use variable 'df'):
+       `print(df[['room_name', 'region', 'price', 'all_facilities_bs']].head(3).to_string(index=False))`
     """
 )
 
